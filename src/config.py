@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         description="Minimum fraction of total image area a detected 4-point contour must cover",
     )
     max_workers: int = Field(
-        default=4,
+        default=1,
         ge=1,
         le=16,
         description="Concurrent worker threads for image processing & VLM calls",
