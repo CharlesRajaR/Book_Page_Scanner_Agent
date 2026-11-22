@@ -79,6 +79,10 @@ def test_page_ordering_with_unnumbered_continuity():
     p10.original_index = 1
     p12.original_index = 2
     unnumbered_13.original_index = 3
+    cover.processed_image = Path("proc_0.jpg")
+    p10.processed_image = Path("proc_1.jpg")
+    p12.processed_image = Path("proc_2.jpg")
+    unnumbered_13.processed_image = Path("proc_3.jpg")
 
     ordered = order_pages([p12, unnumbered_13, p10, cover])
     names = [item.processed_image.name for item in ordered]
