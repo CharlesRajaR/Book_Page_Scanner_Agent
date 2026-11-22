@@ -25,7 +25,7 @@ def _sentence_continuation_score(prev_last: str, next_first: str) -> float:
     next_stripped = next_first.strip()
 
     # Check if previous page ends mid-sentence
-    if prev_stripped and prev_stripped[-1] not in ".!?"'":
+    if prev_stripped and prev_stripped[-1] not in '.!?':
         score += 0.5
         # Check if next page begins with a lowercase continuation word
         first_alpha = next((ch for ch in next_stripped if ch.isalpha()), "")
