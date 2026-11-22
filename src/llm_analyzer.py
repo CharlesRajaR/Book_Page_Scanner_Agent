@@ -32,7 +32,10 @@ class GeminiVisionAnalyzer:
     """Multimodal LLM client using Google GenAI SDK with structured Pydantic outputs."""
 
     def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(api_version="v1beta"),
+        )
         self.model_name = model_name
 
     @retry(
@@ -54,16 +57,20 @@ class GeminiVisionAnalyzer:
             "Return the tight bounding box normalized to 0-1000."
         )
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=[pil_img, prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=FallbackBoundingBox,
-                temperature=0.0,
-            ),
-        )
-        return FallbackBoundingBox.model_validate_json(response.text)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[pil_img, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=FallbackBoundingBox,
+                    temperature=0.0,
+                ),
+            )
+            return FallbackBoundingBox.model_validate_json(response.text)
+        except Exception as exc:
+            logger.warning("Gemini bounding-box detection failed; using the full image: %s", exc)
+            return FallbackBoundingBox(ymin=0, xmin=0, ymax=1000, xmax=1000, detected=False)
 
     @retry(
         stop=stop_after_attempt(3),
@@ -82,37 +89,33 @@ class GeminiVisionAnalyzer:
         pil_img = _resize_for_vlm(_ndarray_to_pil(bgr_image), max_dim=1600)
 
         prompt = (
-            "You are a document digitization assistant analyzing a photograph of a book page.
-"
-            "Inspect the image carefully and extract:
-"
+            "You are a document digitization assistant analyzing a photograph of a book page.\n"
+            "Inspect the image carefully and extract:\n"
             "1. `page_numbers`: All printed page numbers visible in headers/footers, ordered left-to-right. "
             "Do NOT confuse chapter numbers, section numbers, or dates with page numbers. "
-            "If no page number is printed, return an empty list [].
-"
+            "If no page number is printed, return an empty list [].\n"
             "2. `is_two_page_spread`: True ONLY if the photo clearly shows BOTH left and right facing pages "
-            "of an open book side-by-side.
-"
-            "3. `rotation_needed_degrees`: Clockwise rotation (0, 90, 180, or 270) required so the text is right-side up.
-"
+            "of an open book side-by-side.\n"
+            "3. `rotation_needed_degrees`: Clockwise rotation (0, 90, 180, or 270) required so the text is right-side up.\n"
             "4. `first_sentence_snippet`: The first ~15 words of actual body text at the top of the page "
-            "(ignore running headers and page numbers).
-"
+            "(ignore running headers and page numbers).\n"
             "5. `last_sentence_snippet`: The last ~15 words of actual body text at the bottom of the page "
-            "(ignore footers and page numbers).
-"
-            "6. `is_blank_or_cover`: True if this is a cover, title page, blank page, or full-page illustration.
-"
+            "(ignore footers and page numbers).\n"
+            "6. `is_blank_or_cover`: True if this is a cover, title page, blank page, or full-page illustration.\n"
             "7. `confidence`: Your confidence (0.0 to 1.0) in the page number and orientation reading."
         )
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=[pil_img, prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=PageAnalysisResult,
-                temperature=0.0,
-            ),
-        )
-        return PageAnalysisResult.model_validate_json(response.text)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[pil_img, prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=PageAnalysisResult,
+                    temperature=0.0,
+                ),
+            )
+            return PageAnalysisResult.model_validate_json(response.text)
+        except Exception as exc:
+            logger.warning("Gemini page analysis failed; using neutral local result: %s", exc)
+            return PageAnalysisResult(confidence=0.0)
